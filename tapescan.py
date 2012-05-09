@@ -13,10 +13,10 @@ print "<HTML><HEAD><TITLE>Tape scanner</TITLE></HEAD>"
 box = ""
 history = []
 
-if "box" in form and form["box"].value != "": box =  form["box"].value
+if "box" in form and form["box"].value != "": box =  form["box"].value.strip()
 if "history" in form and form["history"].value != "":
    history = form["history"].value.split(",")
-if "tape" in form: history.append(form["tape"].value)
+if "tape" in form: history.append(form["tape"].value.strip())
 
 agent = os.environ['HTTP_USER_AGENT']
 uri = os.environ['REQUEST_URI']
