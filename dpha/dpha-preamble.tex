@@ -65,5 +65,5 @@ of copying them. Between the two servers. I've used {\tt robocopy} (or {\tt rsyn
 relevant folders in which schedule files are found: barschedules, schedules, amoschedules, copylists/scheduled, consolidationlist/scheduled, verificationlists/scheduled and rptschedules. 
 \end{description}
 
-
-
+One final note: in version 8, HP introduced a new parameter: {\tt SmFirstSessionOfDay}. While DataProtector 8 can cope with two sessions having the same session ID, it is very
+confusing for the human operatos, so it is best if this is avoided. By setting the two cell managers to completely different start points, separated by more than a day's session count (e.g. 100 versus 500 when you have less than 400 backups running per day) you can guarantee that two cell managers are not going to generate sessions with the same session number. This only takes effect on the next day, so if you are in a hurry, you can use {\tt omnidbutil -set\_session\_counter}. 
