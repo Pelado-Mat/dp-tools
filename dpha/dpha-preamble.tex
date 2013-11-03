@@ -1,0 +1,69 @@
+\documentclass{article}
+\usepackage{index}
+\usepackage{bookman}
+
+\setlength{\parskip}{1ex}
+\setlength{\parindent}{0mm}
+\makeindex
+\title{DataProtector High Availability (DPHA)}
+\author{Greg Baker (gregb@ifost.org.au)}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section*{Introduction}
+
+HP DataProtector has a central cell manager which requires some work to avoid it being a single point of failure. This is because no backups run if the cell manager is down. 
+
+There are a few other minor single points of failure which can easily be worked around (e.g. make sure that you have at least two servers able to perform the role of robotic control for each library, and likewise for the role of media agent for each tape drive), but the cell manager is trickier. There are five ways of making the HP DataProtector cell manager highly available. 
+
+\begin{itemize}
+\item Traditional clustering using ServiceGuard, Veritas or Windows Clusters. HP supports this and the procedures for doing so are in the {\tt Installation and Licensing Guide}. Generally these solutions can only exist in a single IP subnet. If you want to have cell-manager capabilities across different sites, this will require some sophisticated networking setup.
+
+\item Virtualisation solutions (such as VMWare Site Recovery) let you abstract the hardware dependency. If the hardware your cell manager is running on fails, you can restart it on another 
+ESX server. With version 8 this has become more practical -- the database in version 7 and before imposed a heavy I/O load which would be exacerbated by by virtualisation. Again, 
+clever networking set up is required to let this work across different IP subnets.
+
+\item Automated internal database restore to another machine was relatively simple in version 7, but much harder to get working in version 8. The general idea is to have an internal database
+backup job run {\tt omnir} to recover the database to another directory, replicate that to another server and have a script at the receiving server which can activate that replicated data. 
+
+\item Use write-ahead-logs from the version 8 (postgresql) database. I've no idea how to do this yet, and don't know if it would even work.
+
+\item Run two cell managers and keep them synchronised. There is no constraint on where these servers are -- one can be in a disaster recovery site and the other can be in a production site.
+
+\end{itemize}
+
+This document describes the scripts that I have put together to automate the last of these. They can be used for other purposes as well. In particular {\tt pool-replicator.pl} and {\tt device-replicator.pl} are very useful when transitioning between servers.
+
+\section*{Overview and Installation}
+
+The {\tt dpha} scripts only require DataProtector version 6.11 or newer, but there is a global option introduced in version 8 which provides a measure of useful safety.
+
+To begin, install one HP DataProtector cell manager and configure the cell as your normally would: install clients, configure media agents, configure any tape libraries and media pools that you need to.
+
+Then, install a second cell manager.
+
+There are five parts to synchronise between the two cells:
+\begin{enumerate}
+\item The device definitions and media pools are part of the binary database. The two scripts {\tt pool-replicator.pl} and {\tt device-replicator.pl} do this. They can be run by hand after changes are made or scheduled to run automatically.  
+\item Media used and sessions are also part of the binary database. The pair {\tt mcfsend.pl} and {\tt mcfreceive.pl} can keep these in sync between servers. Create a Notification to run {\tt mcfsend.pl} at the end of each backup, and create a scheduled task to run {\tt mcfreceive.pl}. Do both of these on both servers. On Windows also create a shared folder on both servers and alter the destination directories listed in {\tt mcfreceive.pl} to reflect where this shared folder is.
+\item The configuration files. See the notes in the next paragraph.
+\item Integration oddities and fragments. The only one I have found so far is the files in the folder {\tt Config/Server/Integ/Config/E2010} which seem to be updated after each backup.
+\item Session messages aren't particularly important. I haven't even bothered to try synchronising these. There are also checkpoint files in {\tt Config/Server/Sessions/checkpoint} which
+\end{enumerate}
+
+At the moment I don't have a config-file synchroniser: it is something I want to fix, but I'm not sure of the best way to proceed. Anyway, because the are plain text files, it's only a matter
+of copying them. Between the two servers. I've used {\tt robocopy} (or {\tt rsync} between Linux boxes) but I suspect {\tt unison} would be better even though I've never tried it. There are only a few files to handle carefully:
+\begin{description}
+\item[Config/Server/Cell/cell\_info] You can't just copy from the first cell manager to the second cell manager initially, because that would remove the second cell manager from its own cell! Append the contents of the second cell manager's {\tt cell\_info} file on to the first cell manager's and {\it then} copy the resulting appended file. This will work.
+\item[Config/Server/Cell/installation\_servers] Same technique as for {\tt cell\_info}
+\item[Config/Server/Cell/lic.dat] This could probably be merged somehow; I haven't investigated this yet.
+\item[Config/Server/Users/userlist] Similarly to {\tt cell\_info}, append the two cell manager's files together and then remove any duplicates.
+\item[Config/Server/Notifications] Because {\tt mcfsend.pl} is triggered from here, the two cell managers will have different {\tt Notifications} files.
+\item[Schedule files] Obviously you only want one server to initiate backups normally. So there's a requirement to manually de-schedule all backups on one server. The
+relevant folders in which schedule files are found: barschedules, schedules, amoschedules, copylists/scheduled, consolidationlist/scheduled, verificationlists/scheduled and rptschedules. 
+\end{description}
+
+
+
