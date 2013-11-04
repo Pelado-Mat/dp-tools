@@ -61,6 +61,7 @@ of copying them. Between the two servers. I've used {\tt robocopy} (or {\tt rsyn
 \item[Config/Server/Cell/lic.dat] This could probably be merged somehow; I haven't investigated this yet.
 \item[Config/Server/Users/userlist] Similarly to {\tt cell\_info}, append the two cell manager's files together and then remove any duplicates.
 \item[Config/Server/Notifications] Because {\tt mcfsend.pl} is triggered from here, the two cell managers will have different {\tt Notifications} files.
+\item[Config/Server/IDB] Don't replicate this folder on version 8 (it's not present on earlier versions). This has the usernames and passwords to access the database.
 \item[Schedule files] Obviously you only want one server to initiate backups normally. So there's a requirement to manually de-schedule all backups on one server. The
 relevant folders in which schedule files are found: barschedules, schedules, amoschedules, copylists/scheduled, consolidationlist/scheduled, verificationlists/scheduled and rptschedules. 
 \end{description}
