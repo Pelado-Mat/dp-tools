@@ -38,9 +38,9 @@ This document describes the scripts that I have put together to automate the las
 
 \section*{Overview and Installation}
 
-The {\tt dpha} scripts only require DataProtector version 6.11 or newer, but there is a global option introduced in version 8 which provides a measure of useful safety.
+The {\tt dpha} scripts only require DataProtector version 6.11 or newer.
 
-To begin, install one HP DataProtector cell manager and configure the cell as your normally would: install clients, configure media agents, configure any tape libraries and media pools that you need to.
+To begin, install one HP DataProtector cell manager and configure the cell as you normally would: install clients, configure media agents, configure any tape libraries and media pools that you need to.
 
 Then, install a second cell manager.
 
@@ -56,7 +56,7 @@ There are five parts to synchronise between the two cells:
 At the moment I don't have a config-file synchroniser: it is something I want to fix, but I'm not sure of the best way to proceed. Anyway, because the are plain text files, it's only a matter
 of copying them. Between the two servers. I've used {\tt robocopy} (or {\tt rsync} between Linux boxes) but I suspect {\tt unison} would be better even though I've never tried it. There are only a few files to handle carefully:
 \begin{description}
-\item[Config/Server/Cell/cell\_info] You can't just copy from the first cell manager to the second cell manager initially, because that would remove the second cell manager from its own cell! Append the contents of the second cell manager's {\tt cell\_info} file on to the first cell manager's and {\it then} copy the resulting appended file. This will work.
+\item[Config/Server/Cell/cell\_info] You can't just copy from the first cell manager to the second cell manager initially, because that would remove the second cell manager from its own cell! Append the contents of the second cell manager's {\tt cell\_info} file on to the first cell manager's and {\it then} copy the resulting appended file. This will work, but be aware of client needs (in the next section).
 \item[Config/Server/Cell/installation\_servers] Same technique as for {\tt cell\_info}
 \item[Config/Server/Cell/lic.dat] This could probably be merged somehow; I haven't investigated this yet.
 \item[Config/Server/Users/userlist] Similarly to {\tt cell\_info}, append the two cell manager's files together and then remove any duplicates.
@@ -66,5 +66,19 @@ of copying them. Between the two servers. I've used {\tt robocopy} (or {\tt rsyn
 relevant folders in which schedule files are found: barschedules, schedules, amoschedules, copylists/scheduled, consolidationlist/scheduled, verificationlists/scheduled and rptschedules. 
 \end{description}
 
-One final note: in version 8, HP introduced a new parameter: {\tt SmFirstSessionOfDay}. While DataProtector 8 can cope with two sessions having the same session ID, it is very
-confusing for the human operatos, so it is best if this is avoided. By setting the two cell managers to completely different start points, separated by more than a day's session count (e.g. 100 versus 500 when you have less than 400 backups running per day) you can guarantee that two cell managers are not going to generate sessions with the same session number. This only takes effect on the next day, so if you are in a hurry, you can use {\tt omnidbutil -set\_session\_counter}. 
+One final note: in patches to version 6.11, HP introduced a new parameter: {\tt SmFirstSessionOfDay}. While DataProtector can cope with two sessions having the same session ID, it is very confusing for the human operators, so it is best if this is avoided. By setting the two cell managers to completely different start points, separated by more than a day's session count (e.g. 100 versus 500 when you have less than 400 backups running per day) you can guarantee that two cell managers are not going to generate sessions with the same session number. This only takes effect on the next day, so if you are in a hurry, you can use {\tt omnidbutil -set\_session\_counter}.
+
+
+\section*{Client Needs During Fail-over}
+
+The cell manager lists all the clients in the cell in {\tt Config/Server/Cell/cell\_info}. The clients keep track of which cell manager they report to.
+
+On Windows clients, it is stored in a registry key:
+{\tt 
+  HKEY\_LOCAL\_MACHINE$\backslash$SOFTWARE $\backslash$Hewlett-Packard $\backslash$OpenView $\backslash$ OmniBackII $\backslash$Site $\backslash$CellServer}. On other platforms, it is stored in {\tt /etc/opt/omni/client/cell\_server}.
+
+Most DataProtector clients can cope just fine if the cell manager listed in their local config does not match the cell maanger which is sending them orders. The disk agent and media agent check against the {\tt cell\_secure} file (which is not present by default), but do not care whether an incoming connection comes from a cell manager or not.
+
+However, most of the integration agents do have problems. MS-SQL, MS-VSS, Exchange and VEAgents (and possibly others) keep some of their configuration on the cell manager. When an integration backup is started, the agent connects to the {\it cell manager listed in their local configuration} to get permission information and to record messages. This means that an integration session initiated from the ``other'' cell manager will fail, or weider, generate a session in the original cell manager.
+
+Ultimately, it's just a matter of fixing up the registry key / cell\_server config file on the clients. This happens automatically if the client is exported and then imported. {\tt dp-move-clients.pl} generates shell and batch scripts to run {\tt omnicc -export\_host} and {\tt omnicc -import\_host}. 
