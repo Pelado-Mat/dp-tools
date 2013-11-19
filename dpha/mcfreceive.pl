@@ -83,7 +83,7 @@ foreach $dname (glob("$incoming\\*.ready")) {
   my @useful_filenames = ();
   foreach $f (@filenames) {
     #print "Considering $f\n";
-    next unless $f =~ /.*\\([a-f0-9]{8})_([a-f0-9]{8})_([a-f0-9]{4})_([a-f0-9]{4})_[A-F0-9]{8}\.mcf$/i;
+    next unless $f =~ /.*\\([a-f0-9]{8})_([a-f0-9]{8})_([a-f0-9]{4})_([a-f0-9]{4})(_[A-F0-9]{8})?\.mcf$/i;
     push(@useful_filenames,$f);
     $medium_id = lc "$1:$2:$3:$4";
     if (exists $checked_media{$medium_id}) {
