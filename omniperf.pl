@@ -10,19 +10,23 @@ omniperf.pl [sessions...]
 
 =head1 DESCRIPTION
 
-This program prints out the throughput rate  of the specified sessions,
+This program prints out the throughput rate of the specified sessions,
 or all current sessions if no sessions are specified.
-
-It also tried to show expected time of completion.
 
 =head1 BUGS
 
 It only handles session numbers at the moment. It would be better if it could run based on
-specifications as well.
+specifications.
 
-It doesn't show expected completion time for barlist backups, which would be really useful.
+For copy jobs this doesn't report on any currently-running objects, only objects which have
+already been copied in this session, so it always underestimates the true throughput.
+
+It doesn't show expected completion time for backups, which would be really useful. This
+should be easily possible for filesystem backups, and possible for other sessions by looking
+at past history.
 
 This script hasn't seen enough testing to really know if it works.
+
 
 =head1 COPYRIGHT
 
@@ -126,11 +130,12 @@ sub str2timestamp {
   return Time::Local::timelocal($second,$minute,$hour,$mday,$month,$year);
 }
 
-sub duration_of_session_so_far {
+
+
+sub when_session_started {
  my $session_id = shift;
  my $dev;
  my $session_start_time = time;
- my $current_time = time;
  my $object;
 
  foreach $dev (keys %{$device_objects{$session_id}}) {
@@ -150,8 +155,15 @@ sub duration_of_session_so_far {
     if ($start_time < $session_start_time) { $session_start_time = $start_time; }
  }
 # print STDERR "$session_id has been running for ".($current_time - $session_start_time). " seconds\n";
+ return $session_start_time;
+
+}
 
 
+sub duration_of_session_so_far {
+ my $session_id = shift;
+  my $current_time = time;
+  my $session_start_time = when_session_started($session_id);
   return $current_time - $session_start_time;
 }
 
@@ -216,7 +228,7 @@ foreach $session_id (@session_list) {
   if ($portion_finished == 0) { $portion_finished = 0.00001; }
   # Saves on div-by-zero check for next line.
   my $expected_duration = $session_duration / $portion_finished;
-  my $final_time = $current_time + $expected_duration;
+  my $final_time = when_session_started($session_id) + $expected_duration;
   my $quantity = sprintf ("%.1f",($total_kbytes / (1024.0 * 1024.0)));
   print "$session_id: expected to finish writing $quantity GB at ".(localtime $final_time). " running at $speed_mbytes_per_second MB/s\n";
 # print STDERR "$session_id: $total_processed_kbytes / $total_kbytes KB in $session_duration seconds\n";
