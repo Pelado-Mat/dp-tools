@@ -35,8 +35,7 @@ Copyright 2013 [[The Institute for Open Systems Technologies Pty Ltd.]]
 =cut 
 
 
-BEGIN { push(@INC,"$ENV{DP_HOME_DIR}/lib/perl"); }
-
+BEGIN { push(@INC,"$ENV{DP_HOME_DIR}/lib/perl") if exists $ENV{DP_HOME_DIR}; push(@INC,"/opt/omni/lib/perl"); }
 use strict;
 use Time::Local;
 
@@ -113,22 +112,36 @@ foreach $session_id (@session_list) {
 }
 
 # To be portable, I should print this from strftime instead of hard-coding it
-my %months = ('January' => 0, 'February' => 1, 'March' => 2,
-             'April' => 3, 'May' => 4, 'June' => 5,
-             'July' => 6, 'August' => 7, 'September' => 8,
-             'October' => 9, 'November' => 10, 'December' => 11);
+
+my %months = $^O eq 'MSWin32' ?
+   qw{January 0 February 1 March 2 April 3 May 4 June 5 July 6 August 7 September 8 October 9 November 10 December 11}
+ : qw{Jan 0 Feb 1 Mar 2 Apr 3 May 4 Jun 5 Jul 6 Aug 7 Sep 8 Oct 9 Nov 10 Dec 11}; 
+
+
+
+
 
 sub str2timestamp {
   my $s = shift;
-  return undef unless $s =~ /, (\d+) (\w+) (\d+), (\d+):(\d+):(\d+) ([ap]\.m\.)/;
-  my $mday = $1;
-  my $month = $months{$2};
-  my $year = $3;
-  my $hour = $4;
-  my $minute = $5;
-  my $second = $6;
+  my @save_array;
+  if ($^O eq 'MSWin32') {
+    return undef unless $s =~ /, (\d+) (\w+) (\d+), (\d+):(\d+):(\d+) ([ap]\.m\.)/;
+    @save_array = ($1,$2,$3,$4,$5,$6,$7);
+  } else {
+    return undef unless $s =~ /(\d+) (\w+) (\d+) (\d+):(\d+):(\d+) ([AP]M)/;
+    @save_array = ($1,$2,$3,$4,$5,$6,$7);
+  }
+  my $mday = $save_array[0];
+  my $month = $months{$save_array[1]};
+  my $year = $save_array[2];
+  my $hour = $save_array[3];
+  my $minute = $save_array[4];
+  my $second = $save_array[5];
+  if (($save_array[6] eq 'PM' || $save_array[6] eq 'p.m.') && $hour < 12) { $hour += 12; } 
+  if (($save_array[6] eq 'AM' || $save_array[6] eq 'a.m.') && $hour == 12 && ($minute > 0 || $second > 0) ) { $hour = 0; }
   return Time::Local::timelocal($second,$minute,$hour,$mday,$month,$year);
 }
+
 
 
 
