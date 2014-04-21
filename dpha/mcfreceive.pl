@@ -83,7 +83,7 @@ foreach $dname (glob("$incoming\\*.ready")) {
   my @useful_filenames = ();
   foreach $f (@filenames) {
     #print "Considering $f\n";
-    next unless $f =~ /.*\\([a-f0-9]{8})_([a-f0-9]{8})_([a-f0-9]{4})_([a-f0-9]{4})(_[A-F0-9]{8})?\.mcf$/i;
+    next unless $f =~ /.*\\([a-f0-9]{8})_([a-f0-9]{8})_([a-f0-9]{4})_([a-f0-9]{4})(_[A-F0-9]{7,8})?\.mcf$/i;
     push(@useful_filenames,$f);
     $medium_id = lc "$1:$2:$3:$4";
     if (exists $checked_media{$medium_id}) {
@@ -105,8 +105,13 @@ foreach $dname (glob("$incoming\\*.ready")) {
        die "Failed to run omnimm -export $medium_id : $!" if ($? >> 8);
     }
   }
+  if ($#useful_filenames == -1) {
+    print "No media found in $dname which matched the right filename pattern. Continuing.\n";
+    next;
+  }
   print "Importing from ".join(" ",@useful_filenames)."\n";
   system("omnimm","-import_from_mcf",@useful_filenames);
+  print "Return code from omnimm -import_from_mcf command was $?\n";
   my $dname_archive = $dname;
   $dname_archive =~ s/\.ready/\.processed/;
   rename $dname,$dname_archive;

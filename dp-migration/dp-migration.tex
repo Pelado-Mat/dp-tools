@@ -1,0 +1,316 @@
+\documentclass{article}
+\usepackage{index}
+\usepackage{bookman}
+
+\setlength{\parskip}{1ex}
+\setlength{\parindent}{0mm}
+\makeindex
+\title{DataProtector Migration Tools}
+\author{Greg Baker (gregb@ifost.org.au)}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section*{Introduction}
+
+There are 3 ways to upgrade from one version of DataProtector to the next. 
+
+\begin{description}
+\item[In-place] The first is to do an in-place upgrade, which generally works very well. The only danger to it is that it can be very difficult to back out (particularly where there are major database changes such as from version 7 to version 8).
+
+\item[Migration] The most common alternative is to create a second cell manager running the newer version of DataProtector and to migrate backup jobs and historical data to it.
+
+\item[Mixed]  The last option is a mixture, where a second cell manager is created running the same version of DataProtector which is then upgraded to the latest version.
+
+\end{description}
+
+This package of tools assists with the last 2 of these upgrade mechanisms. It also assists with any other kind of migration (such as consolidation of several cell managers into one).
+
+
+\section*{Overview and Installation}
+
+The {\tt dp-migration} scripts only require DataProtector version 6.11 or newer.
+
+To begin, install the second HP DataProtector cell manager.
+
+There are five parts to synchronise between the two cells:
+
+\begin{enumerate}
+\item Create administrator accounts on each cell manager for an administrator on the other. For example, if you generally log in as {\it gregb} then make sure that {\it gregb} is has administrator rights on {\sf cell1} when running the cell console from {\sf cell2}, and make sure that {\it gregb2} is an administrator on {\sf cell2} when running the cell console from {\sf cell1}.
+\item Run {\tt pool-replicator.pl} to copy media pools.
+\item Run {\tt dp-move-clients.pl} to make sure that all your media agents are defined in the new cell. If you are doing a slow migration, then you might want to save a copy of the {\tt Cell/cell\_info} file from the old cell manager before you do this.
+\item Run {\tt device-replicator.pl} to copy device definitions.
+\item Run {\tt mcf-all-media.pl} on your existing cell manager. 
+\item Run {\tt mega-import.pl} on your new cell manager.
+\item Copy the configuration files. See the notes in the next paragraph.
+\item Handle any integration oddities and fragments. The only one I have found so far is the files in the folder {\tt Config/Server/Integ/Config/E2010} which seem to be updated after each backup.
+\item Copy session messages if you think they are important. There are also checkpoint files in {\tt Config/Server/Sessions/checkpoint}.
+\end{enumerate}
+
+At the moment I don't have a config-file synchroniser: it is something I want to fix, but I'm not sure of the best way to proceed. Anyway, because the are plain text files, it's only a matter
+of copying them. Between the two servers. I've used {\tt robocopy} (or {\tt rsync} between Linux boxes) but I suspect {\tt unison} would be better even though I've never tried it. There are only a few files to handle carefully:
+\begin{description}
+\item[Config/Server/Cell/cell\_info] You can't just copy from the first cell manager to the second cell manager initially, because that would remove the second cell manager from its own cell! Append the contents of the second cell manager's {\tt cell\_info} file on to the first cell manager's and {\it then} copy the resulting appended file. This will work, but be aware of client needs (in the next section).
+\item[Config/Server/Cell/installation\_servers] Same technique as for {\tt cell\_info}
+\item[Config/Server/Cell/lic.dat] This could probably be merged somehow; I haven't investigated this yet.
+\item[Config/Server/Users/userlist] Similarly to {\tt cell\_info}, append the two cell manager's files together and then remove any duplicates.
+\item[Config/Server/Notifications] Because {\tt mcfsend.pl} is triggered from here, the two cell managers will have different {\tt Notifications} files.
+\item[Config/Server/IDB] Don't replicate this folder on version 8 (it's not present on earlier versions). This has the usernames and passwords to access the database.
+\item[Schedule files] Obviously you only want one server to initiate backups normally. So there's a requirement to manually de-schedule all backups on one server. The
+relevant folders in which schedule files are found: barschedules, schedules, amoschedules, copylists/scheduled, consolidationlist/scheduled, verificationlists/scheduled and rptschedules. 
+\end{description}
+
+
+%%  Latex generated from POD in document /Users/gregb/Documents/Development/dp-tools/dp-migration/device-replicator.pl
+%%  Using the perl module Pod::LaTeX
+%%  Converted on Mon Apr 21 08:44:59 2014
+
+%%  Preamble supplied by user.
+
+\clearpage
+\section{device-replicator.pl\label{device-replicator_pl}\index{device-replicator.pl}}
+
+
+A script to make a two cell managers have the same pools
+
+\subsection*{SYNOPSIS\label{device-replicator_pl_SYNOPSIS}\index{device-replicator pl!SYNOPSIS}}
+
+
+device-replicator.pl \texttt{from} \textit{cellmgr}
+
+
+
+device-replicator.pl \texttt{to} \textit{cellmgr}
+
+\subsection*{DESCRIPTION\label{device-replicator_pl_DESCRIPTION}\index{device-replicator pl!DESCRIPTION}}
+
+
+When called with \texttt{from} as the first argument, it will connect to
+\textit{cellmgr} and fetch all device and library information from it. It
+will then create any libraries and devices which the local cell
+manager does not have, and modify any that already exist to match the
+remote server.
+
+
+
+When called with \texttt{to} it works the opposite way around: the devices and libraries
+from the local cell manager are recreated on the cell manager given as an argument.
+
+\subsection*{REQUIREMENTS\label{device-replicator_pl_REQUIREMENTS}\index{device-replicator pl!REQUIREMENTS}}
+
+
+You will need the cell console software installed on the computer running
+\texttt{device-replicator.pl} and the user that runs it needs to have media configuration
+rights on both cells.
+
+
+
+You almost definitely will want to run \emph{pool-replicator.pl} before you run \texttt{device-replicator.pl}
+
+\subsection*{SEE ALSO\label{device-replicator_pl_SEE_ALSO}\index{device-replicator pl!SEE ALSO}}
+
+
+\emph{pool-replicator.pl}
+
+\subsection*{BUGS\label{device-replicator_pl_BUGS}\index{device-replicator pl!BUGS}}
+
+
+Probably many. It hasn't been tested on every variation yet.
+
+\subsection*{COPYRIGHT\label{device-replicator_pl_COPYRIGHT}\index{device-replicator pl!COPYRIGHT}}
+
+
+Copyright 2013 [[The Institute for Open Systems Technologies Pty Ltd.]]
+
+\clearpage
+\section{pool-replicator.pl\label{pool-replicator_pl}\index{pool-replicator.pl}}
+
+
+A script to make a two cell managers have the same pools
+
+\subsection*{SYNOPSIS\label{pool-replicator_pl_SYNOPSIS}\index{pool-replicator pl!SYNOPSIS}}
+
+
+pool-replicator.pl \texttt{from} \textit{cellmgr}
+
+
+
+pool-replicator.pl \texttt{to} \textit{cellmgr}
+
+\subsection*{DESCRIPTION\label{pool-replicator_pl_DESCRIPTION}\index{pool-replicator pl!DESCRIPTION}}
+
+
+When called with \texttt{from} as the first argument, it will connect to
+\textit{cellmgr} and fetch all pool information from it, including free pool
+information. It will then create any pools which the local cell manager
+does not have, and modify any that already exist to match the remote server.
+
+
+
+When called with \texttt{to} it works the opposite way around: the pools
+from the local cell manager are recreated on the cell manager given as an argument.
+
+\subsection*{REQUIREMENTS\label{pool-replicator_pl_REQUIREMENTS}\index{pool-replicator pl!REQUIREMENTS}}
+
+
+You will need the cell console software installed on the computer running
+\texttt{pool-replicator.pl} and the user that runs it needs to have media configuration
+rights on both cells.
+
+\subsection*{SEE ALSO\label{pool-replicator_pl_SEE_ALSO}\index{pool-replicator pl!SEE ALSO}}
+
+
+\emph{device-replicator.pl}
+
+\subsection*{BUGS\label{pool-replicator_pl_BUGS}\index{pool-replicator pl!BUGS}}
+
+
+Probably many. It hasn't been tested on every variation yet.
+
+\subsection*{COPYRIGHT\label{pool-replicator_pl_COPYRIGHT}\index{pool-replicator pl!COPYRIGHT}}
+
+
+Copyright 2013 [[The Institute for Open Systems Technologies Pty Ltd.]]
+
+\clearpage
+\section{dp-move-clients.pl\label{dp-move-clients_pl}\index{dp-move-clients.pl}}
+
+
+Generate a script to export/import every client in a cell
+
+\subsection*{SYNOPSIS\label{dp-move-clients_pl_SYNOPSIS}\index{dp-move-clients pl!SYNOPSIS}}
+
+
+dp-move-clients.pl \texttt{[-export\_only]} \textit{[client-skip-list...]}
+
+\subsection*{DESCRIPTION\label{dp-move-clients_pl_DESCRIPTION}\index{dp-move-clients pl!DESCRIPTION}}
+
+
+This program generates a script which can export/import every client in a cell.
+This is a very convenient thing to do when you are migrating from one cell manager to another. On
+the old cell manager you run:
+
+\begin{verbatim}
+  dp-move-clients.pl
+  dp-move-clients.pl -export_only
+\end{verbatim}
+
+
+Redirect each to a \texttt{.bat} file on Windows or to a \texttt{.sh} file on
+Unix. Run the second script on the old cell manager first, and then
+copy the first script to the new cell manager, and run it there.
+
+\subsection*{OUTPUT\label{dp-move-clients_pl_OUTPUT}\index{dp-move-clients pl!OUTPUT}}
+
+
+\texttt{dp-move-clients.pl} reads through the output of \texttt{omnicellinfo
+-cell} and writes \texttt{omnicc} commands for each one of them.
+
+
+
+If \texttt{-export\_only} is specified, it will just output \texttt{omnicc
+-export\_host} commands, otherwise there will also be a following
+\texttt{omnicc -import\_host} command.
+
+
+
+If a \textit{client-skip-list} is specified, it is a list of names of
+servers to ignore -{}- no \texttt{omnicc} command will be generated for these.
+
+\subsection*{COPYRIGHT\label{dp-move-clients_pl_COPYRIGHT}\index{dp-move-clients pl!COPYRIGHT}}
+
+
+Copyright 2013 [The Institute for Open Systems Technologies Pty Ltd.]
+
+\subsection*{BUGS\label{dp-move-clients_pl_BUGS}\index{dp-move-clients pl!BUGS}}
+
+
+If a client is unreachable then the import might fail.
+
+
+
+It's not much good having a script to \texttt{-export\_only} if the original cell manager is down.
+
+
+
+It doesn't handle clusters or virtualisation properly.
+
+\clearpage
+\section{mcf-all-media.pl\label{mcf-all-media_pl}\index{mcf-all-media.pl}}
+
+
+
+
+\subsection*{SYNOPSIS\label{mcf-all-media_pl_SYNOPSIS}\index{mcf-all-media pl!SYNOPSIS}}
+
+
+mcf-all-media.pl \textit{output-directory} \textit{target-server-directory} [\textit{target-server}]
+
+\subsection*{DESCRIPTION\label{mcf-all-media_pl_DESCRIPTION}\index{mcf-all-media pl!DESCRIPTION}}
+
+
+This program walks through everything in the media management database and writes MCF files out to the 
+output directory, unless they already exist on the (optionally specified) target server. Then it copies it to
+target-server-directory (with an extension of .temp, which gets changed to .mcf once it is complete).
+
+\subsection*{REQUIREMENTS\label{mcf-all-media_pl_REQUIREMENTS}\index{mcf-all-media pl!REQUIREMENTS}}
+
+
+The output directory must be local (this is a requirement of the \texttt{omnimm} command).
+
+
+
+This program uses functionality introduced in DataProtector 6.11.
+
+\subsection*{SEE ALSO\label{mcf-all-media_pl_SEE_ALSO}\index{mcf-all-media pl!SEE ALSO}}
+
+
+\emph{mega-import.pl}
+
+\subsection*{COPYRIGHT\label{mcf-all-media_pl_COPYRIGHT}\index{mcf-all-media pl!COPYRIGHT}}
+
+
+Copyright 2014 [The Institute for Open Systems Technologies Pty Ltd.]
+
+\subsection*{BUGS\label{mcf-all-media_pl_BUGS}\index{mcf-all-media pl!BUGS}}
+
+
+Only tested on Windows (but should work on Linux and HP-UX).
+
+\clearpage
+\section{mega-import.pl\label{mega-import_pl}\index{mega-import.pl}}
+
+
+
+
+\subsection*{SYNOPSIS\label{mega-import_pl_SYNOPSIS}\index{mega-import pl!SYNOPSIS}}
+
+
+mega-import.pl \textit{watch-directory}
+
+\subsection*{DESCRIPTION\label{mega-import_pl_DESCRIPTION}\index{mega-import pl!DESCRIPTION}}
+
+
+\texttt{mega-import.pl} watches for files in the watch-directory that end in .mcf. When it sees 
+one, it checks to see if it is already known about in the DataProtector internal database. 
+If it is not already in the database, it is imported.
+
+\subsection*{SEE ALSO\label{mega-import_pl_SEE_ALSO}\index{mega-import pl!SEE ALSO}}
+
+
+\emph{mcf-all-media.pl}
+
+\subsection*{COPYRIGHT\label{mega-import_pl_COPYRIGHT}\index{mega-import pl!COPYRIGHT}}
+
+
+Copyright 2014 [The Institute for Open Systems Technologies Pty Ltd.]
+
+\subsection*{BUGS\label{mega-import_pl_BUGS}\index{mega-import pl!BUGS}}
+
+
+Only tested on Windows (but should work on Linux and HP-UX).
+
+\printindex
+
+\end{document}

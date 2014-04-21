@@ -1,0 +1,63 @@
+\documentclass{article}
+\usepackage{index}
+\usepackage{bookman}
+
+\setlength{\parskip}{1ex}
+\setlength{\parindent}{0mm}
+\makeindex
+\title{DataProtector Migration Tools}
+\author{Greg Baker (gregb@ifost.org.au)}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section*{Introduction}
+
+There are 3 ways to upgrade from one version of DataProtector to the next. 
+
+\begin{description}
+\item[In-place] The first is to do an in-place upgrade, which generally works very well. The only danger to it is that it can be very difficult to back out (particularly where there are major database changes such as from version 7 to version 8).
+
+\item[Migration] The most common alternative is to create a second cell manager running the newer version of DataProtector and to migrate backup jobs and historical data to it.
+
+\item[Mixed]  The last option is a mixture, where a second cell manager is created running the same version of DataProtector which is then upgraded to the latest version.
+
+\end{description}
+
+This package of tools assists with the last 2 of these upgrade mechanisms. It also assists with any other kind of migration (such as consolidation of several cell managers into one).
+
+
+\section*{Overview and Installation}
+
+The {\tt dp-migration} scripts only require DataProtector version 6.11 or newer.
+
+To begin, install the second HP DataProtector cell manager.
+
+There are five parts to synchronise between the two cells:
+
+\begin{enumerate}
+\item Create administrator accounts on each cell manager for an administrator on the other. For example, if you generally log in as {\it gregb} then make sure that {\it gregb} is has administrator rights on {\sf cell1} when running the cell console from {\sf cell2}, and make sure that {\it gregb2} is an administrator on {\sf cell2} when running the cell console from {\sf cell1}.
+\item Run {\tt pool-replicator.pl} to copy media pools.
+\item Run {\tt dp-move-clients.pl} to make sure that all your media agents are defined in the new cell. If you are doing a slow migration, then you might want to save a copy of the {\tt Cell/cell\_info} file from the old cell manager before you do this.
+\item Run {\tt device-replicator.pl} to copy device definitions.
+\item Run {\tt mcf-all-media.pl} on your existing cell manager. 
+\item Run {\tt mega-import.pl} on your new cell manager.
+\item Copy the configuration files. See the notes in the next paragraph.
+\item Handle any integration oddities and fragments. The only one I have found so far is the files in the folder {\tt Config/Server/Integ/Config/E2010} which seem to be updated after each backup.
+\item Copy session messages if you think they are important. There are also checkpoint files in {\tt Config/Server/Sessions/checkpoint}.
+\end{enumerate}
+
+At the moment I don't have a config-file synchroniser: it is something I want to fix, but I'm not sure of the best way to proceed. Anyway, because the are plain text files, it's only a matter
+of copying them. Between the two servers. I've used {\tt robocopy} (or {\tt rsync} between Linux boxes) but I suspect {\tt unison} would be better even though I've never tried it. There are only a few files to handle carefully:
+\begin{description}
+\item[Config/Server/Cell/cell\_info] You can't just copy from the first cell manager to the second cell manager initially, because that would remove the second cell manager from its own cell! Append the contents of the second cell manager's {\tt cell\_info} file on to the first cell manager's and {\it then} copy the resulting appended file. This will work, but be aware of client needs (in the next section).
+\item[Config/Server/Cell/installation\_servers] Same technique as for {\tt cell\_info}
+\item[Config/Server/Cell/lic.dat] This could probably be merged somehow; I haven't investigated this yet.
+\item[Config/Server/Users/userlist] Similarly to {\tt cell\_info}, append the two cell manager's files together and then remove any duplicates.
+\item[Config/Server/Notifications] Because {\tt mcfsend.pl} is triggered from here, the two cell managers will have different {\tt Notifications} files.
+\item[Config/Server/IDB] Don't replicate this folder on version 8 (it's not present on earlier versions). This has the usernames and passwords to access the database.
+\item[Schedule files] Obviously you only want one server to initiate backups normally. So there's a requirement to manually de-schedule all backups on one server. The
+relevant folders in which schedule files are found: barschedules, schedules, amoschedules, copylists/scheduled, consolidationlist/scheduled, verificationlists/scheduled and rptschedules. 
+\end{description}
+
